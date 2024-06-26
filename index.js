@@ -25,9 +25,9 @@ const writeReportToFile = (data) => {
   const jsonContent = JSON.stringify(data, null, 2);
   fs.writeFile(filePath, jsonContent, "utf8", (err) => {
     if (err) {
-      console.error(`${getTimestamp()} Error writing JSON to file:`, err);
+      console.error(`[${getTimestamp()}] Error writing JSON to file:`, err);
     } else {
-      console.info(`${getTimestamp()} JSON file has been saved.`);
+      console.info(`[${getTimestamp()}] JSON file has been saved.`);
     }
   });
 };
@@ -93,7 +93,7 @@ const getSkuLabsInventory = async (skuArray) => {
     return response.data;
   } catch (error) {
     console.error(
-      `${getTimestamp()} [getSkuLabsInventory]: Error fetching SKU Labs inventory:`,
+      `[${getTimestamp()}] [getSkuLabsInventory]: Error fetching SKU Labs inventory:`,
       error
     );
     throw error;
@@ -124,7 +124,7 @@ const getSkuLabsOnHandLocationMap = async () => {
     return response.data;
   } catch (error) {
     console.error(
-      `${getTimestamp()} [getSkuLabsInventory]: Error fetching SKU Labs inventory:`,
+      `[${getTimestamp()}] [getSkuLabsInventory]: Error fetching SKU Labs inventory:`,
       error
     );
     throw error;
@@ -184,9 +184,12 @@ const findMissingSKUs = (skus, skuToIDMap) => {
 
 const updateQuantities = async () => {
   try {
+    console.info(
+      `[${getTimestamp()}] Program starting...writing to: ${TABLE_NAME}`
+    );
     // 1. Get All Distinct SKU Lab SKUs from AdminPanel
     console.info(
-      `${getTimestamp()} Getting distinct SKU Lab SKUs from Products table`
+      `[${getTimestamp()}] Getting distinct SKU Lab SKUs from Products table`
     );
     const { data: distinctSKULabSkus, error } = await supabase.rpc(
       "get_distinct_sku_lab_skus"
@@ -199,7 +202,7 @@ const updateQuantities = async () => {
     // 2. Fetch SKU details from SKU Labs
     const batchSize = 300;
     let allItems = [];
-    console.info(`${getTimestamp()} Getting all items from SKU Labs...`);
+    console.info(`[${getTimestamp()}] Getting all items from SKU Labs...`);
     for (let i = 0; i < skus.length; i += batchSize) {
       const batch = skus.slice(i, i + batchSize);
       const items = await getSkuLabsInventory(batch);
@@ -207,26 +210,28 @@ const updateQuantities = async () => {
       // Have an await to not get dinged by SKU Labs
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    console.info(`${getTimestamp()} Finished getting all items from SKU Labs.`);
+    console.info(
+      `[${getTimestamp()}] Finished getting all items from SKU Labs.`
+    );
     // 3. Map SKUs to their corresponding _id
     console.info(
-      `${getTimestamp()} Mapping Products_SKU_Lab_SKUs to SKUs from SKU Labs.`
+      `[${getTimestamp()}] Mapping Products_SKU_Lab_SKUs to SKUs from SKU Labs.`
     );
     const skuToIDMap = mapSKUToID(allItems);
     const missingSKUs = findMissingSKUs(skus, skuToIDMap);
     console.info(
-      `${getTimestamp()} Getting On Hand Quantity for all items from SKU Labs.`
+      `[${getTimestamp()}] Getting On Hand Quantity for all items from SKU Labs.`
     );
     const itemsOnHand = await getSkuLabsOnHandLocationMap();
 
     // 4. Link SKU to items on hand
     console.info(
-      `${getTimestamp()} Linking Products_SKU_Lab_SKUs to updated quantity of items on hand.`
+      `[${getTimestamp()}] Linking Products_SKU_Lab_SKUs to updated quantity of items on hand.`
     );
     const skuToItemsOnHand = linkSKUToItemsOnHand(skuToIDMap, itemsOnHand);
 
     console.info(
-      `${getTimestamp()} Updating Products table with new quantity.`
+      `[${getTimestamp()}] Updating Products table with new quantity.`
     );
     // 5. Update the product table (adjust the logic based on your database)
     const updateResults = [];
@@ -248,7 +253,7 @@ const updateQuantities = async () => {
 
       if (fetchError) {
         console.error(
-          `${getTimestamp()} Error fetching SKU ${sku}:`,
+          `[${getTimestamp()}] Error fetching SKU ${sku}:`,
           fetchError
         );
         updateResults.push({
@@ -270,7 +275,7 @@ const updateQuantities = async () => {
         .eq("skulabs SKU", sku);
 
       if (error) {
-        console.error(`${getTimestamp()} Error updating SKU ${sku}:`, error);
+        console.error(`[${getTimestamp()}] Error updating SKU ${sku}:`, error);
         updateResults.push({
           sku,
           oldQuantity,
@@ -280,7 +285,7 @@ const updateQuantities = async () => {
         failedCount++;
       } else {
         console.info(
-          `${getTimestamp()} Updated SKU ${sku} with quantities: ${quantities} from ${oldQuantity}`
+          `[${getTimestamp()}] Updated SKU ${sku} with quantities: ${quantities} from ${oldQuantity}`
         );
         updateResults.push({
           sku,
@@ -303,7 +308,7 @@ const updateQuantities = async () => {
 
     return updateResults;
   } catch (error) {
-    console.error(`${getTimestamp()} Error ${JSON.stringify(error)}`);
+    console.error(`[${getTimestamp()}] Error ${JSON.stringify(error)}`);
   }
 };
 
