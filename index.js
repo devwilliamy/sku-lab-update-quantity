@@ -65,7 +65,7 @@ function formatTime(input, timezone = "UTC") {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
-
+const TABLE_NAME = process.env.TABLE_NAME;
 /**
  * Uses Sku Labs Item Get API to get the item.
  * We are taking Sku Lab SKU from Products table to get the item id from SKU Lab
@@ -239,7 +239,7 @@ const updateQuantities = async () => {
 
       // Fetch the old quantity before updating
       const { data: currentProduct, error: fetchError } = await supabase
-        .from("Products_duplicate_20240625") // Replace with your actual table name
+        .from(TABLE_NAME) // Replace with your actual table name
         .select("quantity")
         .eq("skulabs SKU", sku)
         .limit(1)
@@ -265,7 +265,7 @@ const updateQuantities = async () => {
 
       // Update your database with the quantities for each SKU
       const { data, error } = await supabase
-        .from("Products_duplicate_20240625")
+        .from(TABLE_NAME)
         .update({ quantity: quantities })
         .eq("skulabs SKU", sku);
 
