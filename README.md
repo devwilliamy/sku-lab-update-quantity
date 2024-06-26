@@ -5,8 +5,8 @@ Need this to pull On Hand quantity from SKU Lab and update the Products Table
 
 Download Node: https://nodejs.org/en/download/prebuilt-installer
 
-1. Git Clone
-2. Npm install
+1. Git Clone or Click on Code and download the zip
+2. In the root of the project, run npm install
 3. Add ENVs
 4. Update table name if needed in code JK you can just do the ENV
 5. Run `npm run start`
