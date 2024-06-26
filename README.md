@@ -9,9 +9,10 @@ Download Node: https://nodejs.org/en/download/prebuilt-installer
 2. In the root of the project, run npm install
 3. Add ENVs
 4. Update table name if needed in code JK you can just do the ENV
-5. Run `npm run start`
-6. Review json report
-7. Review Table
+5. If this is on the Products table, create a backup for it.
+6. Run `npm run start`
+7. Review json report
+8. Review Table
 
 # ENV
 ```
