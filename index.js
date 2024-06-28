@@ -163,7 +163,10 @@ const mapSKUToID = (items) => {
 const linkSKUToItemsOnHand = (skuToIDMap, itemsOnHand) => {
   const skuToItemsOnHand = {};
   for (const [sku, id] of Object.entries(skuToIDMap)) {
-    if (itemsOnHand["62f0fcc0fc3f4e916f865d71"][id]) {
+    if (
+      itemsOnHand["62f0fcc0fc3f4e916f865d71"][id] !== undefined &&
+      itemsOnHand["62f0fcc0fc3f4e916f865d71"][id] !== null
+    ) {
       skuToItemsOnHand[sku] = itemsOnHand["62f0fcc0fc3f4e916f865d71"][id];
     }
   }
@@ -297,12 +300,13 @@ const updateQuantities = async () => {
       }
     }
     const recordCount = {
+      tableName: TABLE_NAME,
       totalCount,
       goodCount,
       failedCount,
     };
     updateResults.unshift(recordCount);
-    updateResults.push({ missingSKUs });
+    updateResults.push({ skuToIDMap, missingSKUs, skuToItemsOnHand });
     // console.debug("Update Results:", JSON.stringify(updateResults, null, 2));
     writeReportToFile(updateResults);
 
