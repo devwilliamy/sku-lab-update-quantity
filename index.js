@@ -99,6 +99,41 @@ const getSkuLabsInventory = async (skuArray) => {
     throw error;
   }
 };
+/**
+ * Uses Sku Labs Kit Get API to get the kit.
+ * A kit is a combination of items.
+ * @example Full Seat Set Seat Cover is a combination of Front and Back Seat Covers.
+ * We are taking Sku Lab SKU from Products table to get the kit id from SKU Lab
+ * so we can map it later
+ * @param {string[]} skuArray
+ * @returns - skuLabKit[]
+ *
+ * SKU Lab SKU: "CA-SC-10-F-NEW-B-NEW-BK-1TO"
+ * ex: Kit ID: 65ea058dc232eeedf72687ac
+ */
+const getSkuLabsInventoryKit = async (skuArray) => {
+  try {
+    const selector = { listing_sku: { $in: skuArray } };
+
+    const response = await axios.get("https://api.skulabs.com/kit/get", {
+      params: {
+        selector: JSON.stringify(selector),
+      },
+      headers: {
+        Authorization: `Bearer ${process.env.SKU_LAB_TOKEN}`,
+      },
+    });
+    // console.debug("response.data:", response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      `[${getTimestamp()}] [getSkuLabsInventory]: Error fetching SKU Labs inventory:`,
+      error
+    );
+    throw error;
+  }
+};
 
 /**
  * Calls Sku Labs Inventory Get On Hand Location Map
@@ -145,6 +180,23 @@ const mapSKUToID = (items) => {
   });
   return skuToIDMap;
 };
+
+/**
+ * Takes items from getSkuLabsInventory and maps SKU to the Kit ID
+ * @param {*} items
+ * @returns object of SKU to SKU Lab Kit ID
+ *
+ * Ex: "CA-SC-10-F-NEW-B-NEW-BK-1TO": "6695c700d0b01d09b702859f"
+ */
+const mapSKUToIDKit = (items) => {
+  const skuToIDMap = {};
+  items.forEach((item) => {
+    skuToIDMap[item.listing_sku] = item._id;
+  });
+  return skuToIDMap;
+};
+
+
 
 /**
  * Takes SKU and ID from mapSKUToID and maps SKU to items on hand
@@ -316,4 +368,205 @@ const updateQuantities = async () => {
   }
 };
 
-updateQuantities();
+const updateSKUIDMapping = async () => {
+  try {
+    console.info(
+      `[${getTimestamp()}] Program starting...writing to: SKU_ID_MAPPING`
+    );
+
+    // 1. Get All Distinct SKU Lab SKUs from AdminPanel
+    console.info(
+      `[${getTimestamp()}] Getting distinct SKU Lab SKUs from Products table`
+    );
+    const { data: distinctSKULabSkus, error } = await supabase.rpc(
+      "get_distinct_sku_lab_skus"
+    );
+
+    if (error) throw error;
+
+    const skus = distinctSKULabSkus.map((item) => item["skulabs SKU"]);
+
+    // 2. Fetch SKU details from SKU Labs
+    const batchSize = 300;
+    let allItems = [];
+    console.info(`[${getTimestamp()}] Getting all items from SKU Labs...`);
+    for (let i = 0; i < skus.length; i += batchSize) {
+      const batch = skus.slice(i, i + batchSize);
+      const items = await getSkuLabsInventory(batch);
+      allItems = allItems.concat(items);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    console.info(
+      `[${getTimestamp()}] Finished getting all items from SKU Labs.`
+    );
+
+    // 3. Map SKUs to their corresponding _id
+    console.info(`[${getTimestamp()}] Mapping SKUs to IDs from SKU Labs.`);
+    const skuToIDMap = mapSKUToID(allItems);
+
+    // 4. Update or insert SKU-ID mappings in Supabase
+    console.info(
+      `[${getTimestamp()}] Updating SKU_ID_MAPPING table in Supabase.`
+    );
+    let insertCount = 0;
+    let skipCount = 0;
+
+    // TODO: Get all SKU to ID From sku_lab_sku_item_id_map
+    // Compare against skuToIDMap and take out the ones that already exist
+
+    for (const [sku, id] of Object.entries(skuToIDMap)) {
+      // Check if the SKU already exists in the mapping table
+      const { data: existingMapping, error: fetchError } = await supabase
+        .from("sku_lab_sku_item_id_map")
+        .select("sku")
+        .eq("sku", sku)
+        .limit(1)
+        .single();
+
+      if (fetchError && fetchError.code !== "PGRST116") {
+        console.error(
+          `[${getTimestamp()}] Error checking SKU ${sku}:`,
+          fetchError
+        );
+        continue;
+      }
+
+      if (!existingMapping) {
+        // SKU doesn't exist, so insert it
+        const { data, error: insertError } = await supabase
+          .from("sku_lab_sku_item_id_map")
+          .insert({ sku: sku, item_id: id, type: "item" });
+
+        if (insertError) {
+          console.error(
+            `[${getTimestamp()}] Error inserting SKU ${sku}:`,
+            insertError
+          );
+        } else {
+          console.info(
+            `[${getTimestamp()}] Inserted new mapping for SKU ${sku} with ID ${id}`
+          );
+          insertCount++;
+        }
+      } else {
+        console.info(
+          `[${getTimestamp()}] Mapping for SKU ${sku} already exists, skipping.`
+        );
+        skipCount++;
+      }
+    }
+
+    console.info(`[${getTimestamp()}] Finished updating SKU_ID_MAPPING table.`);
+    console.info(
+      `[${getTimestamp()}] Inserted ${insertCount} new mappings, skipped ${skipCount} existing mappings.`
+    );
+
+    return { insertCount, skipCount };
+  } catch (error) {
+    console.error(`[${getTimestamp()}] Error: ${JSON.stringify(error)}`);
+    throw error;
+  }
+};
+
+const updateSKUIDMappingKits = async () => {
+  try {
+    console.info(
+      `[${getTimestamp()}] Program starting...writing to: SKU_ID_MAPPING`
+    );
+
+    // 1. Get All Distinct SKU Lab SKUs from AdminPanel
+    console.info(
+      `[${getTimestamp()}] Getting distinct SKU Lab SKUs from Products table`
+    );
+    const { data: distinctSKULabSkus, error } = await supabase.rpc(
+      "get_distinct_sku_lab_skus"
+    );
+
+    if (error) throw error;
+
+    const skus = distinctSKULabSkus.map((item) => item["skulabs SKU"]);
+
+    // 2. Fetch SKU details from SKU Labs
+    const batchSize = 300;
+    let allItems = [];
+    console.info(`[${getTimestamp()}] Getting all kits from SKU Labs...`);
+    for (let i = 0; i < skus.length; i += batchSize) {
+      const batch = skus.slice(i, i + batchSize);
+      const items = await getSkuLabsInventoryKit(batch);
+      allItems = allItems.concat(items);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    console.info(
+      `[${getTimestamp()}] Finished getting all kits from SKU Labs.`
+    );
+
+    // 3. Map SKUs to their corresponding _id
+    console.info(`[${getTimestamp()}] Mapping SKUs to IDs from SKU Labs.`);
+    const skuToIDMap = mapSKUToIDKit(allItems);
+
+    // 4. Update or insert SKU-ID mappings in Supabase
+    console.info(
+      `[${getTimestamp()}] Updating SKU_ID_MAPPING table in Supabase.`
+    );
+    let insertCount = 0;
+    let skipCount = 0;
+
+    // TODO: Get all SKU to ID From sku_lab_sku_item_id_map
+    // Compare against skuToIDMap and take out the ones that already exist
+    
+    for (const [sku, id] of Object.entries(skuToIDMap)) {
+      // Check if the SKU already exists in the mapping table
+      const { data: existingMapping, error: fetchError } = await supabase
+        .from("sku_lab_sku_item_id_map")
+        .select("sku")
+        .eq("sku", sku)
+        .limit(1)
+        .single();
+
+      if (fetchError && fetchError.code !== "PGRST116") {
+        console.error(
+          `[${getTimestamp()}] Error checking SKU ${sku}:`,
+          fetchError
+        );
+        continue;
+      }
+
+      if (!existingMapping) {
+        // SKU doesn't exist, so insert it
+        const { data, error: insertError } = await supabase
+          .from("sku_lab_sku_item_id_map")
+          .insert({ sku: sku, item_id: id, type: "kit" });
+
+        if (insertError) {
+          console.error(
+            `[${getTimestamp()}] Error inserting SKU ${sku}:`,
+            insertError
+          );
+        } else {
+          console.info(
+            `[${getTimestamp()}] Inserted new mapping for SKU ${sku} with ID ${id}`
+          );
+          insertCount++;
+        }
+      } else {
+        console.info(
+          `[${getTimestamp()}] Mapping for SKU ${sku} already exists, skipping.`
+        );
+        skipCount++;
+      }
+    }
+
+    console.info(`[${getTimestamp()}] Finished updating SKU_ID_MAPPING table.`);
+    console.info(
+      `[${getTimestamp()}] Inserted ${insertCount} new mappings, skipped ${skipCount} existing mappings.`
+    );
+
+    return { insertCount, skipCount };
+  } catch (error) {
+    console.error(`[${getTimestamp()}] Error: ${JSON.stringify(error)}`);
+    throw error;
+  }
+};
+updateSKUIDMapping();
+// updateSKUIDMappingKits();
+// updateQuantities();
