@@ -409,6 +409,7 @@ const updateSKUIDMapping = async () => {
     const updateResults = [];
     let insertCount = 0;
     let skipCount = 0;
+    let updateCount = 0;
 
     // TODO: Get all SKU to ID From sku_lab_sku_item_id_map
     // Compare against skuToIDMap and take out the ones that already exist
@@ -417,7 +418,7 @@ const updateSKUIDMapping = async () => {
       // Check if the SKU already exists in the mapping table
       const { data: existingMapping, error: fetchError } = await supabase
         .from("sku_lab_sku_item_id_map")
-        .select("sku")
+        .select("sku, item_id")
         .eq("sku", sku)
         .limit(1)
         .single();
@@ -453,25 +454,37 @@ const updateSKUIDMapping = async () => {
           });
         }
       } else {
-        console.info(
-          `[${getTimestamp()}] Mapping for SKU ${sku} already exists, skipping.`
-        );
-        skipCount++;
+        if (existingMapping.item_id !== skuToIDMap[sku]) {
+          await supabase
+            .from("sku_lab_sku_item_id_map")
+            .update({ item_id: id })
+            .eq("sku", sku);
+          console.info(
+            `[${getTimestamp()}] Mapping for SKU ${sku} is mismatched, updating.`
+          );
+          updateCount++;
+        } else {
+          console.info(
+            `[${getTimestamp()}] Mapping for SKU ${sku} already exists, skipping.`
+          );
+          skipCount++;
+        }
       }
     }
 
     console.info(`[${getTimestamp()}] Finished updating SKU_ID_MAPPING table.`);
     console.info(
-      `[${getTimestamp()}] Inserted ${insertCount} new mappings, skipped ${skipCount} existing mappings.`
+      `[${getTimestamp()}] Inserted ${insertCount} new mappings, updated ${updateCount} mappings, skipped ${skipCount} existing mappings.`
     );
     const recordCount = {
       tableName: "sku_lab_sku_item_id_map",
       insertCount,
       skipCount,
+      updateCount,
     };
     updateResults.unshift(recordCount);
     writeReportToFile(updateResults);
-    return { insertCount, skipCount };
+    return { insertCount, skipCount, updateCount };
   } catch (error) {
     console.error(`[${getTimestamp()}] Error: ${JSON.stringify(error)}`);
     throw error;
@@ -521,6 +534,7 @@ const updateSKUIDMappingKits = async () => {
     const updateResults = [];
     let insertCount = 0;
     let skipCount = 0;
+    let updateCount = 0;
 
     // TODO: Get all SKU to ID From sku_lab_sku_item_id_map
     // Compare against skuToIDMap and take out the ones that already exist
@@ -529,7 +543,7 @@ const updateSKUIDMappingKits = async () => {
       // Check if the SKU already exists in the mapping table
       const { data: existingMapping, error: fetchError } = await supabase
         .from("sku_lab_sku_item_id_map")
-        .select("sku")
+        .select("sku, item_id")
         .eq("sku", sku)
         .limit(1)
         .single();
@@ -565,32 +579,44 @@ const updateSKUIDMappingKits = async () => {
           });
         }
       } else {
-        console.info(
-          `[${getTimestamp()}] Mapping for SKU ${sku} already exists, skipping.`
-        );
-        skipCount++;
+        if (existingMapping.item_id !== skuToIDMap[sku]) {
+          await supabase
+            .from("sku_lab_sku_item_id_map")
+            .update({ item_id: id })
+            .eq("sku", sku);
+          console.info(
+            `[${getTimestamp()}] Mapping for SKU ${sku} is mismatched, updating.`
+          );
+          updateCount++;
+        } else {
+          console.info(
+            `[${getTimestamp()}] Mapping for SKU ${sku} already exists, skipping.`
+          );
+          skipCount++;
+        }
       }
     }
 
     console.info(`[${getTimestamp()}] Finished updating SKU_ID_MAPPING table.`);
     console.info(
-      `[${getTimestamp()}] Inserted ${insertCount} new mappings, skipped ${skipCount} existing mappings.`
+      `[${getTimestamp()}] Inserted ${insertCount} new mappings, updated ${updateCount} mappings, skipped ${skipCount} existing mappings.`
     );
 
     const recordCount = {
       tableName: "sku_lab_sku_item_id_map",
       insertCount,
       skipCount,
+      updateCount,
     };
     updateResults.unshift(recordCount);
     writeReportToFile(updateResults);
 
-    return { insertCount, skipCount };
+    return { insertCount, skipCount, updateCount };
   } catch (error) {
     console.error(`[${getTimestamp()}] Error: ${JSON.stringify(error)}`);
     throw error;
   }
 };
-// updateSKUIDMapping();
-updateSKUIDMappingKits();
+updateSKUIDMapping();
+// updateSKUIDMappingKits();
 // updateQuantities();
