@@ -132,3 +132,5 @@ dist
 sampleJson/
 skuLabSkuUpdateReport*
 *.zip
+sku_lab_update_report/*
+skusToItemId_20240912*
