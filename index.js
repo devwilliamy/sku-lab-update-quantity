@@ -3,6 +3,7 @@ const { createClient } = require("@supabase/supabase-js");
 const { DateTime } = require("luxon");
 const fs = require("fs");
 const { updateTrackingNumber } = require("./skulabTrackingNumber");
+const { updateShipByDate } = require("./updateShipByDate");
 require("dotenv").config();
 
 function getTimestamp() {
@@ -619,6 +620,8 @@ const updateSKUIDMappingKits = async () => {
   }
 };
 // updateSKUIDMapping();
+
 // updateSKUIDMappingKits();
 // updateQuantities();
-updateTrackingNumber()
+// updateTrackingNumber()
+updateShipByDate();
