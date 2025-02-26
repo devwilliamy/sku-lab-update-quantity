@@ -18,14 +18,31 @@ const GETOption = {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function updateShipByDate() {
+  let productCount = 0;
+  const startDate = "2024-12-01T08:00:00";
+  const endDate = "2024-12-03T07:59:59";
   const responseGET = await fetch(
-    `https://api.skulabs.com/order/get_all?request_body={"start":"2025-02-01T08:00:00","end":"2025-02-22T07:59:59","tags":["6328f5c3c3ea0aede729f817"]}`,
+    `https://api.skulabs.com/order/get_all?request_body={"start":"${startDate}","end":"${endDate}","tags":["6328f5c3c3ea0aede729f817"]}`,
+    // `https://api.skulabs.com/order/get_all?request_body={"start":"2024-11-19T08:00:00","end":"2025-02-22T07:59:59","tags":["6328f5c3c3ea0aede729f817"]}`,
     // 'https://api.skulabs.com/order/get_single?store_id=62f0fcbffc3f4e916f865d6a&order_number=CL-TEST-PRE-250221-SE-0963',
     GETOption
   );
   const { orders } = await responseGET.json();
-
+  console.log(
+    `Updating Ship by Date. Start Date: ${startDate}. End Date: ${endDate} Order Count: ${orders.length}`
+  );
+  logger.info(
+    `Updating Ship by Date. Start Date: ${startDate}. End Date: ${endDate} Order Count: ${orders.length}`
+  );
   for (const order of orders) {
+    productCount++;
+    console.log(`Product count: ${productCount}`);
+    logger.info(`Product count: ${productCount}`);
+    if (new Date(order.date) < new Date(startDate)) {
+      console.log(`[WARNING]: Found order date that was before start date. Date: ${order.date}, Start Date: ${startDate}`)
+      log.info(`[WARNING]: Found order date that was before start date. Date: ${order.date}, Start Date: ${startDate}`)
+      continue;
+    }
     try {
       const orderNumber = order.order_number;
       const notes = order.stash.notes || "";
@@ -154,10 +171,16 @@ function parsePreorderInfoFromNotes(notes) {
     }
 
     // Check for preorder date
-    if (line.startsWith("Preorder / Ship Date:")) {
-      const preorderDateStr = line
-        .substring("Preorder / Ship Date:".length)
-        .trim();
+    if (
+      line.startsWith("Preorder / Ship Date:") ||
+      line.startsWith("Preorder Date:")
+    ) {
+      let preorderDateStr;
+      if (line.startsWith("Preorder / Ship Date:")) {
+        preorderDateStr = line.substring("Preorder / Ship Date:".length).trim();
+      } else {
+        preorderDateStr = line.substring("Preorder Date:".length).trim();
+      }
 
       if (preorderDateStr && preorderDateStr.toLowerCase() !== "null") {
         // Convert MM/DD/YYYY to ISO format (YYYY-MM-DD)
