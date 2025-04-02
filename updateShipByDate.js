@@ -17,10 +17,78 @@ const GETOption = {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function updateShipByDate() {
+/**
+ * Process orders in batches by date ranges to handle API limits
+ */
+async function batchUpdateShipByDate() {
+  // Define the overall date range
+  const fullStartDate = "2025-01-01T08:00:00Z";
+  const fullEndDate = "2025-02-22T07:59:59Z"; // Example end date
+
+  // Convert to DateTime objects for easier manipulation
+  let currentStart = DateTime.fromISO(fullStartDate);
+  const finalEnd = DateTime.fromISO(fullEndDate);
+
+  // Batch size in days (adjust based on your data volume)
+  const batchSizeDays = 5; // 5-day chunks
+
+  let totalOrdersProcessed = 0;
+  let totalBatches = 0;
+
+  console.log(
+    `Starting batch processing from ${fullStartDate} to ${fullEndDate}`
+  );
+  logger.info(
+    `Starting batch processing from ${fullStartDate} to ${fullEndDate}`
+  );
+
+  // Process batches until we reach the final end date
+  while (currentStart < finalEnd) {
+    // Calculate the end of this batch (either batchSizeDays later or the final end date)
+    let currentEnd = currentStart.plus({ days: batchSizeDays });
+    if (currentEnd > finalEnd) {
+      currentEnd = finalEnd;
+    }
+
+    totalBatches++;
+
+    // Format dates for the API call
+    const startDateStr = currentStart.toISO();
+    const endDateStr = currentEnd.toISO();
+
+    console.log(
+      `Processing batch ${totalBatches}: ${startDateStr} to ${endDateStr}`
+    );
+    logger.info(
+      `Processing batch ${totalBatches}: ${startDateStr} to ${endDateStr}`
+    );
+
+    // Process this batch
+    const batchCount = await updateShipByDate(startDateStr, endDateStr);
+    totalOrdersProcessed += batchCount;
+
+    // Move to the next batch
+    currentStart = currentEnd;
+
+    // Optional: Add a delay between batches to avoid API rate limits
+    await delay(2000);
+  }
+
+  console.log(
+    `Completed all batches. Processed ${totalOrdersProcessed} orders in ${totalBatches} batches.`
+  );
+  logger.info(
+    `Completed all batches. Processed ${totalOrdersProcessed} orders in ${totalBatches} batches.`
+  );
+
+  return totalOrdersProcessed;
+}
+
+async function updateShipByDate(startDate, endDate) {
   let productCount = 0;
-  const startDate = "2024-12-01T08:00:00";
-  const endDate = "2024-12-03T07:59:59";
+  // const startDate = "2024-12-10T08:00:00Z";
+  // const endDate = "2024-12-15T07:59:59Z";
+  // const endDate = "2024-12-02T11:59:59Z";
   const responseGET = await fetch(
     `https://api.skulabs.com/order/get_all?request_body={"start":"${startDate}","end":"${endDate}","tags":["6328f5c3c3ea0aede729f817"]}`,
     // `https://api.skulabs.com/order/get_all?request_body={"start":"2024-11-19T08:00:00","end":"2025-02-22T07:59:59","tags":["6328f5c3c3ea0aede729f817"]}`,
@@ -39,8 +107,12 @@ async function updateShipByDate() {
     console.log(`Product count: ${productCount}`);
     logger.info(`Product count: ${productCount}`);
     if (new Date(order.date) < new Date(startDate)) {
-      console.log(`[WARNING]: Found order date that was before start date. Date: ${order.date}, Start Date: ${startDate}`)
-      log.info(`[WARNING]: Found order date that was before start date. Date: ${order.date}, Start Date: ${startDate}`)
+      console.log(
+        `[WARNING]: Found order date that was before start date. Date: ${order.date}, Start Date: ${startDate}`
+      );
+      logger.info(
+        `[WARNING]: Found order date that was before start date. Date: ${order.date}, Start Date: ${startDate}`
+      );
       continue;
     }
     try {
@@ -132,6 +204,7 @@ async function updateShipByDate() {
       logger.error(`${orderNumber}: produced ERROR for unknown reasons.`);
     }
   }
+  return orders.length;
 }
 
 /**
@@ -239,4 +312,5 @@ function convertToPacificTime(utcDateString, hour = 11) {
 
 module.exports = {
   updateShipByDate,
+  batchUpdateShipByDate,
 };
